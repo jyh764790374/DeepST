@@ -3,6 +3,7 @@
 '''
 
 from __future__ import print_function
+import keras
 from keras.layers import (
     Input,
     Activation,
@@ -25,7 +26,8 @@ def _bn_relu_conv(nb_filter, nb_row, nb_col, subsample=(1, 1), bn=False):
         if bn:
             input = BatchNormalization(mode=0, axis=1)(input)
         activation = Activation('relu')(input)
-        return Convolution2D(nb_filter=nb_filter, nb_row=nb_row, nb_col=nb_col, subsample=subsample, border_mode="same")(activation)
+        return Convolution2D(nb_filter=nb_filter, nb_row=nb_row, nb_col=nb_col, subsample=subsample, border_mode="same", data_format="channels_first")(activation)
+    #conv2中增加参数data_format="channels_first"， 以下函数做了相同的改变
     return f
 
 
@@ -66,14 +68,14 @@ def stresnet(c_conf=(3, 2, 32, 32), p_conf=(3, 2, 32, 32), t_conf=(3, 2, 32, 32)
             main_inputs.append(input)
             # Conv1
             conv1 = Convolution2D(
-                nb_filter=64, nb_row=3, nb_col=3, border_mode="same")(input)
+                nb_filter=64, nb_row=3, nb_col=3, border_mode="same", data_format="channels_first")(input)
             # [nb_residual_unit] Residual Units
             residual_output = ResUnits(_residual_unit, nb_filter=64,
                               repetations=nb_residual_unit)(conv1)
             # Conv2
             activation = Activation('relu')(residual_output)
             conv2 = Convolution2D(
-                nb_filter=nb_flow, nb_row=3, nb_col=3, border_mode="same")(activation)
+                nb_filter=nb_flow, nb_row=3, nb_col=3, border_mode="same", data_format="channels_first")(activation)
             outputs.append(conv2)
 
     # parameter-matrix-based fusion
@@ -84,7 +86,7 @@ def stresnet(c_conf=(3, 2, 32, 32), p_conf=(3, 2, 32, 32), t_conf=(3, 2, 32, 32)
         new_outputs = []
         for output in outputs:
             new_outputs.append(iLayer()(output))
-        main_output = merge(new_outputs, mode='sum')
+        main_output = keras.layers.merge(new_outputs, mode='sum')
 
     # fusing with external component
     if external_dim != None and external_dim > 0:
@@ -96,7 +98,7 @@ def stresnet(c_conf=(3, 2, 32, 32), p_conf=(3, 2, 32, 32), t_conf=(3, 2, 32, 32)
         h1 = Dense(output_dim=nb_flow * map_height * map_width)(embedding)
         activation = Activation('relu')(h1)
         external_output = Reshape((nb_flow, map_height, map_width))(activation)
-        main_output = merge([main_output, external_output], mode='sum')
+        main_output = keras.layers.merge([main_output, external_output],mode='sum')
     else:
         print('external_dim:', external_dim)
 
